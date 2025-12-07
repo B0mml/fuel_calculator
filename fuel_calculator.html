@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kraftstoff-Rechner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        .container {
+            max-width: 500px;
+            width: 100%;
+            background-color: #2b2b2b;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            padding: 2rem;
+        }
+
+        .input-group label {
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .input-group input[type="number"],
+        .input-group input[type="text"] {
+            background-color: #444;
+            color: #e0e0e0;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #555;
+            width: 100%;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+
+        .result-box {
+            background-color: #383838;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        .result-label {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #a0a0a0;
+        }
+
+        .result-value {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #4CAF50;
+            /* Green color for emphasis */
+            margin-top: 0.5rem;
+        }
+
+        .mode-toggle button {
+            padding: 0.5rem 1rem;
+            background-color: #444;
+            color: #e0e0e0;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .mode-toggle button.active {
+            background-color: #555;
+            font-weight: bold;
+        }
+
+        .suggestion-list {
+            text-align: left;
+            margin-top: 1.5rem;
+            border-top: 1px solid #444;
+            padding-top: 1rem;
+        }
+
+        .suggestion-list h3 {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 0.75rem;
+            color: #ccc;
+        }
+
+        .suggestion-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.4rem 0;
+            font-size: 1rem;
+        }
+
+        .suggestion-label {
+            font-weight: 700;
+        }
+
+        .safe {
+            color: #4CAF50;
+        }
+
+        .normal {
+            color: #FFC107;
+        }
+
+        .risky {
+            color: #F44336;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1 class="text-3xl font-bold text-center mb-6">⛽ Kraftstoff-Rechner</h1>
+
+        <div class="mb-6 flex justify-center space-x-4 mode-toggle">
+            <button id="mode-rounds-btn" class="active">Berechnung nach Runden</button>
+            <button id="mode-time-btn">Berechnung nach Zeit</button>
+        </div>
+
+        <div id="common-inputs" class="space-y-4">
+            <div class="input-group">
+                <label for="consumption-per-lap">Verbrauch pro Runde (Liter)</label>
+                <input type="number" id="consumption-per-lap" value="2.5" min="0.1" step="0.1">
+            </div>
+        </div>
+
+        <div id="rounds-inputs" class="space-y-4">
+            <div class="input-group">
+                <label for="total-rounds">Anzahl der Runden</label>
+                <input type="number" id="total-rounds" value="10" min="1" step="1">
+            </div>
+        </div>
+
+        <div id="time-inputs" class="space-y-4 hidden">
+            <div class="input-group">
+                <label for="race-duration">Rennlänge (Minuten)</label>
+                <input type="number" id="race-duration" value="15" min="1" step="1">
+            </div>
+            <div class="input-group">
+                <label for="lap-time">Rundenzeit (MM:SS.ms)</label>
+                <input type="text" id="lap-time" value="01:29" placeholder="z.B. 01:29 oder 1:29.5">
+            </div>
+            <div class="text-sm text-gray-400 mt-2">
+                *Die Berechnung nach Zeit rundet auf die nächste volle Runde auf, um die Renndauer sicher abzudecken.
+            </div>
+        </div>
+
+        <button id="calculate-btn"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg mt-6 transition duration-150">
+            Berechnen
+        </button>
+
+        <div id="result-display" class="result-box hidden">
+            <div class="result-label">Mindestbedarf Kraftstoff</div>
+            <div class="result-value" id="total-consumption">0 L</div>
+            <div id="rounds-info" class="text-sm text-gray-400 mt-2"></div>
+
+            <div id="suggestions-output" class="suggestion-list">
+                <h3>Empfohlene Tankfüllungen inkl. Puffer:</h3>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const modeRoundsBtn = document.getElementById('mode-rounds-btn');
+        const modeTimeBtn = document.getElementById('mode-time-btn');
+        const roundsInputs = document.getElementById('rounds-inputs');
+        const timeInputs = document.getElementById('time-inputs');
+        const calculateBtn = document.getElementById('calculate-btn');
+        const resultDisplay = document.getElementById('result-display');
+        const totalConsumptionDisplay = document.getElementById('total-consumption');
+        const roundsInfoDisplay = document.getElementById('rounds-info');
+        const suggestionsOutput = document.getElementById('suggestions-output');
+
+        let currentMode = 'rounds'; // 'rounds' or 'time'
+
+        function toggleMode(mode) {
+            currentMode = mode;
+            modeRoundsBtn.classList.remove('active');
+            modeTimeBtn.classList.remove('active');
+            roundsInputs.classList.add('hidden');
+            timeInputs.classList.add('hidden');
+            resultDisplay.classList.add('hidden');
+
+            if (mode === 'rounds') {
+                modeRoundsBtn.classList.add('active');
+                roundsInputs.classList.remove('hidden');
+            } else {
+                modeTimeBtn.classList.add('active');
+                timeInputs.classList.remove('hidden');
+            }
+        }
+
+        function parseLapTime(timeStr) {
+            const parts = timeStr.split(':');
+            let totalSeconds = 0;
+            if (parts.length === 2) {
+                // MM:SS.ms format
+                const minutes = parseFloat(parts[0]);
+                const seconds = parseFloat(parts[1]);
+                totalSeconds = (minutes * 60) + seconds;
+            } else if (parts.length === 1) {
+                // Assume SS.ms format if only one part
+                const seconds = parseFloat(parts[0]);
+                totalSeconds = seconds;
+            }
+            return totalSeconds;
+        }
+
+        function calculateFuel() {
+            const consumptionPerLap = parseFloat(document.getElementById('consumption-per-lap').value);
+
+            if (isNaN(consumptionPerLap) || consumptionPerLap <= 0) {
+                alert("Bitte einen gültigen Verbrauch pro Runde eingeben.");
+                return;
+            }
+
+            let totalRoundsNeeded = 0;
+            let infoText = '';
+
+            if (currentMode === 'rounds') {
+                const totalRounds = parseInt(document.getElementById('total-rounds').value);
+                if (isNaN(totalRounds) || totalRounds <= 0) {
+                    alert("Bitte eine gültige Rundenanzahl eingeben.");
+                    return;
+                }
+                totalRoundsNeeded = totalRounds;
+                infoText = `Berechnet für ${totalRoundsNeeded} Runden.`;
+            } else {
+                const raceDurationMinutes = parseFloat(document.getElementById('race-duration').value);
+                const lapTimeStr = document.getElementById('lap-time').value;
+
+                if (isNaN(raceDurationMinutes) || raceDurationMinutes <= 0) {
+                    alert("Bitte eine gültige Rennlänge in Minuten eingeben.");
+                    return;
+                }
+
+                const lapTimeSeconds = parseLapTime(lapTimeStr);
+
+                if (isNaN(lapTimeSeconds) || lapTimeSeconds <= 0) {
+                    alert("Bitte eine gültige Rundenzeit (z.B. 01:29) eingeben.");
+                    return;
+                }
+
+                const raceDurationSeconds = raceDurationMinutes * 60;
+
+                // Calculate the number of rounds and round up to the next full round
+                const exactRounds = raceDurationSeconds / lapTimeSeconds;
+                totalRoundsNeeded = Math.ceil(exactRounds);
+
+                const roundedExactRounds = Math.floor(exactRounds * 100) / 100;
+
+                infoText = `Die Rennlänge von ${raceDurationMinutes} Minuten entspricht ca. ${roundedExactRounds} Runden bei ${lapTimeStr} Rundenzeit. Berechnet für ${totalRoundsNeeded} volle Runden (aufgerundet).`;
+            }
+
+            const totalConsumption = totalRoundsNeeded * consumptionPerLap;
+
+            // --- NEUE LOGIK FÜR PUFFER-VORSCHLÄGE START ---
+
+            // Puffer-Definition: 
+            // Risikoreich: 10% des Verbrauchs pro Runde
+            // Normal: 50% des Verbrauchs pro Runde
+            // Sicher: 100% des Verbrauchs pro Runde (Eine ganze Extrarunde)
+            const bufferRisky = consumptionPerLap * 0.10;
+            const bufferNormal = consumptionPerLap * 0.50;
+            const bufferSafe = consumptionPerLap * 1.00;
+
+            const suggestions = [
+                { label: 'Sicherer Puffer 🟢', buffer: bufferSafe, cssClass: 'safe' },
+                { label: 'Normaler Puffer 🟡', buffer: bufferNormal, cssClass: 'normal' },
+                { label: 'Risikoreicher Puffer 🔴', buffer: bufferRisky, cssClass: 'risky' }
+            ];
+
+            let suggestionsHTML = '<h3>Empfohlene Tankfüllungen inkl. Puffer:</h3>';
+
+            suggestions.forEach(s => {
+                const totalWithBuffer = totalConsumption + s.buffer;
+                const bufferInfo = `(+${s.buffer.toFixed(2)} L Puffer)`;
+                suggestionsHTML += `
+                    <div class="suggestion-item">
+                        <span class="suggestion-label ${s.cssClass}">${s.label}</span>
+                        <span>${totalWithBuffer.toFixed(2)} L</span>
+                    </div>
+                    <div class="text-xs text-gray-500 text-right">${bufferInfo}</div>
+                `;
+            });
+
+            // --- NEUE LOGIK FÜR PUFFER-VORSCHLÄGE ENDE ---
+
+            totalConsumptionDisplay.textContent = `${totalConsumption.toFixed(2)} L`;
+            roundsInfoDisplay.textContent = infoText;
+            suggestionsOutput.innerHTML = suggestionsHTML; // Output the suggestions
+            resultDisplay.classList.remove('hidden');
+        }
+
+        // Event Listeners
+        modeRoundsBtn.addEventListener('click', () => toggleMode('rounds'));
+        modeTimeBtn.addEventListener('click', () => toggleMode('time'));
+        calculateBtn.addEventListener('click', calculateFuel);
+
+        // Initial setup
+        window.onload = () => {
+            toggleMode('rounds');
+        };
+    </script>
+
+</body>
+
+</html>
